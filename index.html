@@ -6,18 +6,18 @@
 </head>
 <body>
     <a-scene>
-        <!-- Camera rig -->
         <a-entity id="rig">
             <a-entity camera look-controls position="0 1.6 0"></a-entity>
             <a-entity id="rightHand" hand-tracking-controls="hand: right" sign-detector></a-entity>
             <a-entity id="leftHand" hand-tracking-controls="hand: left"></a-entity>
         </a-entity>
 
-        <!-- Instruction text -->
-        <a-text id="instruction" value="Show: Thumbs Up" position="0 2.2 -2" align="center" color="white" width="6"></a-text>
+        <a-text id="instruction" value="Show: Thumbs Up" position="0 2.4 -2" align="center" color="white" width="6"></a-text>
 
-        <!-- Feedback text -->
-        <a-text id="feedback" value="Waiting..." position="0 1.8 -2" align="center" color="yellow" width="6"></a-text>
+        <a-text id="feedback" value="Waiting..." position="0 2.0 -2" align="center" color="yellow" width="6"></a-text>
+
+        <!-- Debug values yahan dikhenge -->
+        <a-text id="debug" value="" position="0 1.6 -2" align="center" color="cyan" width="5"></a-text>
 
         <a-sky color="#222"></a-sky>
     </a-scene>
@@ -26,11 +26,15 @@
         AFRAME.registerComponent('sign-detector', {
             init: function () {
                 this.feedbackEl = document.querySelector('#feedback');
+                this.debugEl = document.querySelector('#debug');
             },
 
             tick: function () {
                 const handComp = this.el.components['hand-tracking-controls'];
-                if (!handComp || !handComp.bones) return;
+                if (!handComp || !handComp.bones || handComp.bones.length === 0) {
+                    this.feedbackEl.setAttribute('value', 'Hand not detected');
+                    return;
+                }
 
                 const bones = handComp.bones;
                 const wrist = this.getJoint(bones, 'wrist');
@@ -39,18 +43,33 @@
                 const middleTip = this.getJoint(bones, 'middle-finger-tip');
                 const ringTip = this.getJoint(bones, 'ring-finger-tip');
                 const pinkyTip = this.getJoint(bones, 'pinky-finger-tip');
+                const middleKnuckle = this.getJoint(bones, 'middle-finger-metacarpal') 
+                                    || this.getJoint(bones, 'middle-finger-phalanx-proximal');
 
-                if (!wrist || !thumbTip) return;
+                if (!wrist || !thumbTip || !indexTip || !middleKnuckle) {
+                    this.debugEl.setAttribute('value', 'Joints missing - check names');
+                    return;
+                }
 
-                const thumbDist = wrist.position.distanceTo(thumbTip.position);
-                const indexDist = wrist.position.distanceTo(indexTip.position);
-                const middleDist = wrist.position.distanceTo(middleTip.position);
-                const ringDist = wrist.position.distanceTo(ringTip.position);
-                const pinkyDist = wrist.position.distanceTo(pinkyTip.position);
+                // Palm size ko reference bana rahe hain (yeh har hand ke liye scale set karega)
+                const palmSize = wrist.position.distanceTo(middleKnuckle.position);
 
-                const thumbExtended = thumbDist > 0.08;
-                const othersCurled = indexDist < 0.06 && middleDist < 0.06 &&
-                                      ringDist < 0.06 && pinkyDist < 0.06;
+                const thumbDist = wrist.position.distanceTo(thumbTip.position) / palmSize;
+                const indexDist = wrist.position.distanceTo(indexTip.position) / palmSize;
+                const middleDist = wrist.position.distanceTo(middleTip.position) / palmSize;
+                const ringDist = wrist.position.distanceTo(ringTip.position) / palmSize;
+                const pinkyDist = wrist.position.distanceTo(pinkyTip.position) / palmSize;
+
+                // Debug: screen pe values dikhao
+                this.debugEl.setAttribute('value',
+                    'T:' + thumbDist.toFixed(2) + ' I:' + indexDist.toFixed(2) +
+                    ' M:' + middleDist.toFixed(2) + ' R:' + ringDist.toFixed(2) +
+                    ' P:' + pinkyDist.toFixed(2));
+
+                // Ratio-based thresholds (hand size se independent)
+                const thumbExtended = thumbDist > 1.3;
+                const othersCurled = indexDist < 1.1 && middleDist < 1.1 &&
+                                      ringDist < 1.1 && pinkyDist < 1.1;
 
                 if (thumbExtended && othersCurled) {
                     this.feedbackEl.setAttribute('value', 'Correct!');
