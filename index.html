@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>ISL VR Prototype</title>
+    <title>Hand Test</title>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
 </head>
 <body>
@@ -10,112 +10,42 @@
             <a-entity camera look-controls position="0 1.6 0"></a-entity>
         </a-entity>
 
-        <a-text id="instruction" value="Show: Thumbs Up" position="0 2.4 -2" align="center" color="white" width="6"></a-text>
-        <a-text id="feedback" value="Waiting for hands..." position="0 2.0 -2" align="center" color="yellow" width="6"></a-text>
-        <a-text id="debug" value="" position="0 1.6 -2" align="center" color="cyan" width="5"></a-text>
+        <a-text id="status" value="Waiting for VR..." position="0 2 -2" align="center" color="white" width="6"></a-text>
 
         <a-sky color="#222"></a-sky>
     </a-scene>
 
     <script>
-        const feedbackEl = document.querySelector('#feedback');
-        const debugEl = document.querySelector('#debug');
-        let xrSession = null;
+        const statusEl = document.querySelector('#status');
+        const sceneEl = document.querySelector('a-scene');
 
-        document.querySelector('a-scene').addEventListener('enter-vr', () => {
-            const sceneEl = document.querySelector('a-scene');
-            xrSession = sceneEl.renderer.xr.getSession();
+        sceneEl.addEventListener('enter-vr', () => {
+            statusEl.setAttribute('value', 'Entered VR');
 
-            if (!xrSession) {
-                feedbackEl.setAttribute('value', 'No XR session found');
-                return;
-            }
+            sceneEl.renderer.xr.addEventListener('sessionstart', () => {
+                const session = sceneEl.renderer.xr.getSession();
+                statusEl.setAttribute('value', 'Session started');
 
-            feedbackEl.setAttribute('value', 'VR entered, looking for hands...');
-
-            sceneEl.addEventListener('renderstart', () => {
                 sceneEl.renderer.setAnimationLoop((time, frame) => {
-                    checkHands(frame, sceneEl);
+                    const session = sceneEl.renderer.xr.getSession();
+                    if (!session) {
+                        statusEl.setAttribute('value', 'No session');
+                        return;
+                    }
+
+                    let sources = session.inputSources.length;
+                    let handsFound = 0;
+                    let info = 'Sources: ' + sources;
+
+                    for (const src of session.inputSources) {
+                        info += ' | ' + src.handedness + ':' + (src.hand ? 'HAND' : 'CONTROLLER');
+                        if (src.hand) handsFound++;
+                    }
+
+                    statusEl.setAttribute('value', info);
                 });
             });
         });
-
-        function checkHands(frame, sceneEl) {
-            if (!frame) return;
-            const session = sceneEl.renderer.xr.getSession();
-            if (!session) return;
-
-            const referenceSpace = sceneEl.renderer.xr.getReferenceSpace();
-
-            for (const inputSource of session.inputSources) {
-                if (inputSource.hand) {
-                    debugEl.setAttribute('value', 'Hand found: ' + inputSource.handedness);
-
-                    if (inputSource.handedness === 'right') {
-                        processHand(inputSource.hand, frame, referenceSpace);
-                    }
-                } else {
-                    debugEl.setAttribute('value', 'No hand data - using controller?');
-                }
-            }
-        }
-
-        function processHand(hand, frame, referenceSpace) {
-            const wristJoint = hand.get('wrist');
-            const thumbTip = hand.get('thumb-tip');
-            const indexTip = hand.get('index-finger-tip');
-            const middleTip = hand.get('middle-finger-tip');
-            const ringTip = hand.get('ring-finger-tip');
-            const pinkyTip = hand.get('pinky-finger-tip');
-            const middleMeta = hand.get('middle-finger-metacarpal');
-
-            if (!wristJoint || !thumbTip) return;
-
-            const wristPose = frame.getJointPose(wristJoint, referenceSpace);
-            const thumbPose = frame.getJointPose(thumbTip, referenceSpace);
-            const indexPose = frame.getJointPose(indexTip, referenceSpace);
-            const middlePose = frame.getJointPose(middleTip, referenceSpace);
-            const ringPose = frame.getJointPose(ringTip, referenceSpace);
-            const pinkyPose = frame.getJointPose(pinkyTip, referenceSpace);
-            const middleMetaPose = frame.getJointPose(middleMeta, referenceSpace);
-
-            if (!wristPose || !thumbPose) return;
-
-            const palmSize = distance(wristPose, middleMetaPose);
-            const thumbDist = distance(wristPose, thumbPose) / palmSize;
-            const indexDist = distance(wristPose, indexPose) / palmSize;
-            const middleDist = distance(wristPose, middlePose) / palmSize;
-            const ringDist = distance(wristPose, ringPose) / palmSize;
-            const pinkyDist = distance(wristPose, pinkyPose) / palmSize;
-
-            debugEl.setAttribute('value',
-                'T:' + thumbDist.toFixed(2) + ' I:' + indexDist.toFixed(2) +
-                ' M:' + middleDist.toFixed(2) + ' R:' + ringDist.toFixed(2) +
-                ' P:' + pinkyDist.toFixed(2));
-
-            const thumbExtended = thumbDist > 1.3;
-            const othersCurled = indexDist < 1.1 && middleDist < 1.1 &&
-                                  ringDist < 1.1 && pinkyDist < 1.1;
-
-            if (thumbExtended && othersCurled) {
-                feedbackEl.setAttribute('value', 'Correct!');
-                feedbackEl.setAttribute('color', 'green');
-            } else {
-                feedbackEl.setAttribute('value', 'Try Again');
-                feedbackEl.setAttribute('color', 'red');
-            }
-        }
-
-        function distance(pose1, pose2) {
-            if (!pose1 || !pose2) return 1;
-            const p1 = pose1.transform.position;
-            const p2 = pose2.transform.position;
-            return Math.sqrt(
-                Math.pow(p1.x - p2.x, 2) +
-                Math.pow(p1.y - p2.y, 2) +
-                Math.pow(p1.z - p2.z, 2)
-            );
-        }
     </script>
 </body>
 </html>
