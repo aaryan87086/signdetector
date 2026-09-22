@@ -3,110 +3,191 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ISL VR Gesture Recognition</title>
-    <!-- A-Frame Framework -->
+    <title>ISL VR Learning Prototype</title>
+    <!-- A-Frame VR Framework -->
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: sans-serif; background: #000; }
+        #desktop-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 999;
+            background: rgba(15, 23, 42, 0.9);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
+        .btn {
+            background: #2563EB;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        .btn:hover { background: #1D4ED8; }
+    </style>
 </head>
 <body>
-    <a-scene webxr="optionalFeatures: hand-tracking;">
-        <a-assets>
-            <a-mixin id="font-style" text="align: center; color: #FFFFFF; font: roboto"></a-mixin>
-        </a-assets>
 
-        <!-- Camera Rig -->
+    <!-- Desktop Fallback Controls (For testing without VR headset) -->
+    <div id="desktop-controls">
+        <span><b>Desktop Testing:</b></span>
+        <button class="btn" onclick="triggerSimulatedGesture('Thumbs Up')">1: Thumbs Up</button>
+        <button class="btn" onclick="triggerSimulatedGesture('Namaste')">2: Namaste</button>
+        <button class="btn" onclick="triggerSimulatedGesture('Bye')">3: Bye</button>
+        <button class="btn" onclick="triggerSimulatedGesture('Victory')">4: Victory</button>
+        <button class="btn" onclick="triggerSimulatedGesture('Thank You')">5: Thank You</button>
+    </div>
+
+    <!-- WebXR Scene -->
+    <a-scene webxr="optionalFeatures: hand-tracking;">
+        
+        <!-- Camera & Hands Rig -->
         <a-entity id="rig" position="0 0 0">
             <a-camera position="0 1.6 0" look-controls></a-camera>
 
-            <!-- Real VR Hand Entities -->
-            <a-entity id="leftHand" hand-tracking-controls="hand: left;" isl-gesture-detector="hand: left"></a-entity>
-            <a-entity id="rightHand" hand-tracking-controls="hand: right;" isl-gesture-detector="hand: right"></a-entity>
-
-            <!-- Simulator Hands for Desktop / Testing -->
-            <a-entity id="simLeftHand" position="-0.25 1.4 -0.5" visible="false">
-                <a-sphere radius="0.04" color="#3B82F6" opacity="0.8"></a-sphere>
-                <a-text value="Left Hand" position="0 0.08 0" scale="0.3 0.3 0.3" align="center"></a-text>
-            </a-entity>
-            <a-entity id="simRightHand" position="0.25 1.4 -0.5" visible="false">
-                <a-sphere radius="0.04" color="#10B981" opacity="0.8"></a-sphere>
-                <a-text value="Right Hand" position="0 0.08 0" scale="0.3 0.3 0.3" align="center"></a-text>
-            </a-entity>
+            <!-- Native WebXR Hand Tracking -->
+            <a-entity id="leftHand" hand-tracking-controls="hand: left;" webxr-hand-tracker="hand: left"></a-entity>
+            <a-entity id="rightHand" hand-tracking-controls="hand: right;" webxr-hand-tracker="hand: right"></a-entity>
         </a-entity>
 
-        <!-- UI Feedback Panel in 3D Space -->
-        <a-entity id="ui-panel" position="0 1.8 -1.8">
-            <a-plane width="1.8" height="0.9" color="#0F172A" opacity="0.85" material="transparent: true; shader: flat" radius="0.05">
-                <a-text id="target-instruction" value="Target: Thumbs Up" position="0 0.28 0.01" scale="0.8 0.8 0.8" mixin="font-style" color="#38BDF8"></a-text>
-                <a-text id="detected-gesture" value="Detected: None" position="0 0.08 0.01" scale="0.6 0.6 0.6" mixin="font-style" color="#94A3B8"></a-text>
-                <a-text id="status-feedback" value="Perform the sign with your hands" position="0 -0.12 0.01" scale="0.7 0.7 0.7" mixin="font-style" color="#FACC15"></a-text>
+        <!-- 3D HUD Interface Panel -->
+        <a-entity id="hud-panel" position="0 1.65 -1.8">
+            <!-- Background Slate -->
+            <a-plane width="2.2" height="1.3" color="#0F172A" opacity="0.9" material="transparent: true; shader: flat" radius="0.08">
                 
-                <!-- Controls instruction for non-VR simulator -->
-                <a-text id="sim-info" value="Desktop Test: Press 1 (Thumbs Up), 2 (Namaste), 3 (Bye)" position="0 -0.32 0.01" scale="0.35 0.35 0.35" mixin="font-style" color="#64748B"></a-text>
+                <!-- Main Header -->
+                <a-text id="target-title" value="Target: Thumbs Up" position="0 0.5 0.02" align="center" width="4.5" color="#38BDF8"></a-text>
+                
+                <!-- Detailed Instructions -->
+                <a-text id="gesture-instruction" value="Instruction: Make a fist with right hand and extend thumb upward" position="0 0.32 0.02" align="center" width="2.8" color="#94A3B8"></a-text>
+
+                <!-- Feedback Message -->
+                <a-text id="status-message" value="Perform gesture to proceed" position="0 -0.38 0.02" align="center" width="3.2" color="#FACC15"></a-text>
+
+                <!-- Gesture Real-time Tracking Info -->
+                <a-text id="detected-text" value="Detected: Waiting for VR Hands..." position="0 -0.52 0.02" align="center" width="2.5" color="#64748B"></a-text>
             </a-plane>
+
+            <!-- 3D Visual Hand Guide Model -->
+            <a-entity id="guide-model-container" position="0 -0.02 0.1">
+                <a-entity id="guide-left-hand" position="-0.25 0 0" visible="false">
+                    <a-sphere radius="0.05" color="#3B82F6" opacity="0.8"></a-sphere>
+                    <a-cylinder position="0 0.08 0" radius="0.012" height="0.12" color="#60A5FA"></a-cylinder>
+                </a-entity>
+                <a-entity id="guide-right-hand" position="0.25 0 0">
+                    <a-sphere id="guide-palm" radius="0.05" color="#10B981" opacity="0.8"></a-sphere>
+                    <a-cylinder id="guide-thumb" position="0 0.08 0" radius="0.012" height="0.1" color="#34D399"></a-cylinder>
+                    <a-cylinder id="guide-finger1" position="0.03 0.07 0" radius="0.008" height="0.08" color="#34D399"></a-cylinder>
+                    <a-cylinder id="guide-finger2" position="-0.03 0.07 0" radius="0.008" height="0.08" color="#34D399"></a-cylinder>
+                </a-entity>
+            </a-entity>
         </a-entity>
 
-        <!-- Environment Elements -->
-        <a-sky color="#090D16"></a-sky>
-        <a-grid position="0 0 0" color="#1E293B" sectionColor="#334155"></a-grid>
-        <a-light type="ambient" color="#FFFFFF" intensity="0.6"></a-light>
-        <a-light type="directional" position="1 4 1" intensity="0.8"></a-light>
+        <!-- VR Atmosphere -->
+        <a-sky color="#030712"></a-sky>
+        <a-grid position="0 0 0" color="#1E293B" sectionColor="#334155" gridRadius="15"></a-grid>
+        <a-light type="ambient" color="#FFFFFF" intensity="0.7"></a-light>
+        <a-light type="directional" position="2 4 2" intensity="0.9"></a-light>
     </a-scene>
 
     <script>
-        // Global state for multi-hand tracking (e.g., Namaste requires both hands)
-        const handData = {
-            left: { present: false, joints: {}, wristPos: new THREE.Vector3() },
-            right: { present: false, joints: {}, wristPos: new THREE.Vector3() }
+        // Global state for hand tracking data
+        const handTrackerState = {
+            left: { active: false, joints: {}, wristPos: new THREE.Vector3() },
+            right: { active: false, joints: {}, wristPos: new THREE.Vector3() }
         };
 
-        const targets = ['Thumbs Up', 'Namaste', 'Bye'];
-        let currentTargetIdx = 0;
-        let lastGestureTime = 0;
-
-        // Custom Component for Robust WebXR Hand Joint Analysis
-        AFRAME.registerComponent('isl-gesture-detector', {
-            schema: {
-                hand: { type: 'string', default: 'right' }
+        // Curriculum Data for 5 ISL Gestures
+        const gesturesList = [
+            {
+                name: "Thumbs Up",
+                instruction: "Make a tight fist with your right hand and extend thumb straight up.",
+                guideType: "thumbs_up"
             },
+            {
+                name: "Namaste",
+                instruction: "Bring both hands together in front of your chest with palms touching.",
+                guideType: "namaste"
+            },
+            {
+                name: "Bye",
+                instruction: "Open right hand with all fingers extended and wave outwards.",
+                guideType: "bye"
+            },
+            {
+                name: "Victory",
+                instruction: "Extend index and middle fingers upwards in a 'V' shape, curl other fingers.",
+                guideType: "victory"
+            },
+            {
+                name: "Thank You",
+                instruction: "Touch fingers near your chin and move right hand forward towards target.",
+                guideType: "thank_you"
+            }
+        ];
+
+        let activeIndex = 0;
+        let successTimestamp = 0;
+
+        // Custom Component for Direct WebXR Hand Tracking & Joint Extraction
+        AFRAME.registerComponent('webxr-hand-tracker', {
+            schema: { hand: { type: 'string', default: 'right' } },
 
             init: function () {
-                this.handComp = this.el.components['hand-tracking-controls'];
-                this.wristVector = new THREE.Vector3();
-                this.jointVectors = {};
-
-                // Listen for WebXR hand tracking events
-                this.el.addEventListener('hand-tracking-stars', () => {
-                    handData[this.data.hand].present = true;
-                });
-                this.el.addEventListener('hand-tracking-lost', () => {
-                    handData[this.data.hand].present = false;
-                });
+                this.wristVec = new THREE.Vector3();
             },
 
-            tick: function (time) {
+            tick: function (time, timeDelta) {
+                const sceneEl = this.el.sceneEl;
+                const frame = sceneEl.frame;
                 const handComp = this.el.components['hand-tracking-controls'];
+
+                // Check if hand is tracked
                 if (!handComp || !handComp.mesh || !handComp.mesh.visible) {
-                    handData[this.data.hand].present = false;
+                    handTrackerState[this.data.hand].active = false;
                     return;
                 }
 
-                handData[this.data.hand].present = true;
+                handTrackerState[this.data.hand].active = true;
 
-                // Extract WebXR Joints from Mesh / Bone structure
-                const joints = handComp.jointPoints || (handComp.indexToJointsMap ? handComp.indexToJointsMap : null);
-                const bones = handComp.bones;
+                // Joint retrieval using Native WebXR frame pose API + A-Frame fallback
+                const joints = {};
+                const jointNames = ['wrist', 'thumb-tip', 'index-finger-tip', 'middle-finger-tip', 'ring-finger-tip', 'pinky-finger-tip'];
 
-                // Obtain key joint positions in world coordinates
-                const getJointPos = (jointName) => {
+                const getJointWorldPos = (jName) => {
+                    // Method 1: WebXR Native Pose
+                    if (frame && handComp.xrInputSource && handComp.xrInputSource.hand) {
+                        const jointSpace = handComp.xrInputSource.hand.get(jName); //
+                        if (jointSpace && sceneEl.renderer.xr.getReferenceSpace()) {
+                            const pose = frame.getJointPose(jointSpace, sceneEl.renderer.xr.getReferenceSpace()); //
+                            if (pose) {
+                                return new THREE.Vector3(pose.transform.position.x, pose.transform.position.y, pose.transform.position.z);
+                            }
+                        }
+                    }
+                    // Method 2: A-Frame / Three.js Joint Mesh Fallback
                     if (handComp.getJointMesh) {
-                        const jMesh = handComp.getJointMesh(jointName);
-                        if (jMesh) {
+                        const mesh = handComp.getJointMesh(jName);
+                        if (mesh) {
                             const vec = new THREE.Vector3();
-                            jMesh.getWorldPosition(vec);
+                            mesh.getWorldPosition(vec);
                             return vec;
                         }
                     }
-                    if (bones && bones.length > 0) {
-                        const bone = bones.find(b => b.name === jointName || b.jointName === jointName);
+                    // Method 3: Bones Mesh Fallback
+                    if (handComp.bones) {
+                        const bone = handComp.bones.find(b => b.name === jName || b.jointName === jName);
                         if (bone) {
                             const vec = new THREE.Vector3();
                             bone.getWorldPosition(vec);
@@ -116,50 +197,45 @@
                     return null;
                 };
 
-                const wrist = getJointPos('wrist');
-                const thumbTip = getJointPos('thumb-tip');
-                const indexTip = getJointPos('index-finger-tip');
-                const middleTip = getJointPos('middle-finger-tip');
-                const ringTip = getJointPos('ring-finger-tip');
-                const pinkyTip = getJointPos('pinky-finger-tip');
+                jointNames.forEach(name => {
+                    joints[name] = getJointWorldPos(name);
+                });
 
-                if (wrist) {
-                    handData[this.data.hand].wristPos.copy(wrist);
-                    handData[this.data.hand].joints = {
-                        wrist, thumbTip, indexTip, middleTip, ringTip, pinkyTip
-                    };
+                if (joints.wrist) {
+                    handTrackerState[this.data.hand].wristPos.copy(joints.wrist);
+                    handTrackerState[this.data.hand].joints = joints;
                 }
 
-                // Master gesture evaluation running on tick loop
+                // Process Gesture Detection loop on Right Hand tick
                 if (this.data.hand === 'right') {
                     evaluateGestures(time);
                 }
             }
         });
 
-        // Gesture Evaluation Logic
-        function evaluateGestures(currentTime) {
-            const right = handData.right;
-            const left = handData.left;
+        // Real-Time Gesture Recognition Algorithm
+        function evaluateGestures(time) {
+            const right = handTrackerState.right;
+            const left = handTrackerState.left;
 
             let detected = "None";
 
-            // 1. NAMASTE GESTURE (Both hands active & close together near center)
-            if (right.present && left.present && right.joints.wrist && left.joints.wrist) {
+            // 1. NAMASTE (Both hands close together)
+            if (right.active && left.active && right.joints.wrist && left.joints.wrist) {
                 const distance = right.wristPos.distanceTo(left.wristPos);
-                if (distance < 0.22) { // Hands brought close together (< 22cm)
+                if (distance < 0.22) { // Hands within 22cm
                     detected = "Namaste";
                 }
             }
 
-            // 2. SINGLE HAND GESTURES (Evaluated if Namaste not triggered)
-            if (detected === "None" && right.present && right.joints.wrist) {
+            // 2. SINGLE HAND GESTURES (Evaluated using Right Hand)
+            if (detected === "None" && right.active && right.joints.wrist) {
                 const w = right.joints.wrist;
-                const tt = right.joints.thumbTip;
-                const it = right.joints.indexTip;
-                const mt = right.joints.middleTip;
-                const rt = right.joints.ringTip;
-                const pt = right.joints.pinkyTip;
+                const tt = right.joints['thumb-tip'];
+                const it = right.joints['index-finger-tip'];
+                const mt = right.joints['middle-finger-tip'];
+                const rt = right.joints['ring-finger-tip'];
+                const pt = right.joints['pinky-finger-tip'];
 
                 if (tt && it && mt && rt && pt) {
                     const dThumb = w.distanceTo(tt);
@@ -168,81 +244,116 @@
                     const dRing = w.distanceTo(rt);
                     const dPinky = w.distanceTo(pt);
 
-                    // Thumbs Up: Thumb extended, all other 4 fingers curled close to wrist
+                    // Calculations for extensions
                     const thumbExtended = dThumb > 0.095;
-                    const fingersCurled = dIndex < 0.085 && dMiddle < 0.085 && dRing < 0.085 && dPinky < 0.085;
+                    const indexExtended = dIndex > 0.11;
+                    const middleExtended = dMiddle > 0.11;
+                    const ringCurled = dRing < 0.085;
+                    const pinkyCurled = dPinky < 0.085;
+                    const allExtended = dThumb > 0.09 && indexExtended && middleExtended && dRing > 0.10 && dPinky > 0.085;
 
-                    // Bye / Wave: All 5 fingers extended outward
-                    const allExtended = dThumb > 0.09 && dIndex > 0.11 && dMiddle > 0.12 && dRing > 0.11 && dPinky > 0.09;
-
-                    if (thumbExtended && fingersCurled) {
+                    // Thumbs Up: Thumb out, 4 fingers curled
+                    if (thumbExtended && dIndex < 0.085 && dMiddle < 0.085 && ringCurled && pinkyCurled) {
                         detected = "Thumbs Up";
-                    } else if (allExtended) {
+                    } 
+                    // Victory: Index & Middle extended, Ring & Pinky curled
+                    else if (indexExtended && middleExtended && ringCurled && pinkyCurled) {
+                        detected = "Victory";
+                    }
+                    // Bye: All fingers extended outward
+                    else if (allExtended) {
                         detected = "Bye";
+                    }
+                    // Thank You: Hand positioned up near chin/face height (> 1.4m world Y)
+                    else if (allExtended && w.y > 1.4) {
+                        detected = "Thank You";
                     }
                 }
             }
 
-            updateUI(detected, currentTime);
+            updateUIAndCheckProgress(detected, time);
         }
 
-        // Update 3D UI Feedback & Progress Targets
-        function updateUI(detected, currentTime) {
-            const targetName = targets[currentTargetIdx];
-            const detectedEl = document.querySelector('#detected-gesture');
-            const statusEl = document.querySelector('#status-feedback');
-            const targetEl = document.querySelector('#target-instruction');
+        // Updates HUD Visuals, 3D Hand Guide & Target Progression
+        function updateUIAndCheckProgress(detected, time) {
+            const currentGesture = gesturesList[activeIndex];
 
-            targetEl.setAttribute('value', `Target: ${targetName}`);
-            detectedEl.setAttribute('value', `Detected: ${detected}`);
+            document.getElementById('target-title').setAttribute('value', `Target: ${currentGesture.name}`);
+            document.getElementById('gesture-instruction').setAttribute('value', `How to do: ${currentGesture.instruction}`);
+            document.getElementById('detected-text').setAttribute('value', `Detected: ${detected}`);
 
-            if (detected === targetName) {
-                statusEl.setAttribute('value', 'EXCELLENT! MATCH CONFIRMED!');
+            const statusEl = document.getElementById('status-message');
+
+            if (detected === currentGesture.name) {
+                statusEl.setAttribute('value', '✓ GREAT JOB! GESTURE CONFIRMED');
                 statusEl.setAttribute('color', '#10B981'); // Green
 
-                // Auto advance to next target gesture after 2 seconds cooldown
-                if (currentTime - lastGestureTime > 2000) {
-                    lastGestureTime = currentTime;
-                    currentTargetIdx = (currentTargetIdx + 1) % targets.length;
+                // Auto-advance to next gesture after holding for 1.8 seconds
+                if (time - successTimestamp > 1800) {
+                    successTimestamp = time;
+                    activeIndex = (activeIndex + 1) % gesturesList.length;
+                    updateGuideModel(gesturesList[activeIndex].guideType);
                 }
             } else if (detected !== "None") {
-                statusEl.setAttribute('value', `Detected ${detected}. Try ${targetName}`);
+                statusEl.setAttribute('value', `Detected "${detected}". Keep trying ${currentGesture.name}`);
                 statusEl.setAttribute('color', '#F59E0B'); // Orange
             } else {
-                statusEl.setAttribute('value', 'Perform the gesture with VR Hands');
+                statusEl.setAttribute('value', 'Perform the gesture using VR Hands');
                 statusEl.setAttribute('color', '#FACC15'); // Yellow
             }
         }
 
-        // Simulator Fallback Keyboard Controls for Desktop Testing
-        window.addEventListener('keydown', (e) => {
-            const simLeft = document.querySelector('#simLeftHand');
-            const simRight = document.querySelector('#simRightHand');
+        // Adjusts 3D Visual Hand Model in HUD based on target gesture
+        function updateGuideModel(guideType) {
+            const leftGuide = document.getElementById('guide-left-hand');
+            const rightGuide = document.getElementById('guide-right-hand');
+            const thumb = document.getElementById('guide-thumb');
+            const f1 = document.getElementById('guide-finger1');
+            const f2 = document.getElementById('guide-finger2');
 
-            let simDetected = null;
-
-            if (e.key === '1') {
-                simDetected = "Thumbs Up";
-                simLeft.setAttribute('visible', 'false');
-                simRight.setAttribute('visible', 'true');
-                simRight.setAttribute('position', '0.1 1.5 -0.5');
-            } else if (e.key === '2') {
-                simDetected = "Namaste";
-                simLeft.setAttribute('visible', 'true');
-                simRight.setAttribute('visible', 'true');
-                simLeft.setAttribute('position', '-0.05 1.5 -0.5');
-                simRight.setAttribute('position', '0.05 1.5 -0.5');
-            } else if (e.key === '3') {
-                simDetected = "Bye";
-                simLeft.setAttribute('visible', 'false');
-                simRight.setAttribute('visible', 'true');
-                simRight.setAttribute('position', '0.2 1.6 -0.5');
+            if (guideType === "namaste") {
+                leftGuide.setAttribute('visible', 'true');
+                rightGuide.setAttribute('position', '0.08 0 0');
+                leftGuide.setAttribute('position', '-0.08 0 0');
+                thumb.setAttribute('rotation', '0 0 0');
+                f1.setAttribute('height', '0.1');
+                f2.setAttribute('height', '0.1');
+            } else if (guideType === "thumbs_up") {
+                leftGuide.setAttribute('visible', 'false');
+                rightGuide.setAttribute('position', '0 0 0');
+                thumb.setAttribute('rotation', '0 0 0');
+                f1.setAttribute('height', '0.02');
+                f2.setAttribute('height', '0.02');
+            } else if (guideType === "victory") {
+                leftGuide.setAttribute('visible', 'false');
+                rightGuide.setAttribute('position', '0 0 0');
+                thumb.setAttribute('rotation', '0 0 45');
+                f1.setAttribute('height', '0.12');
+                f2.setAttribute('height', '0.12');
+            } else {
+                // Bye & Thank You
+                leftGuide.setAttribute('visible', 'false');
+                rightGuide.setAttribute('position', '0 0 0');
+                thumb.setAttribute('rotation', '0 0 30');
+                f1.setAttribute('height', '0.11');
+                f2.setAttribute('height', '0.11');
             }
+        }
 
-            if (simDetected) {
-                updateUI(simDetected, performance.now());
+        // Simulator function for 2D Screen / Non-VR Testing
+        function triggerSimulatedGesture(gestureName) {
+            updateUIAndCheckProgress(gestureName, performance.now());
+        }
+
+        // Animate 3D HUD Hand Guide model continuously
+        function animateGuide() {
+            requestAnimationFrame(animateGuide);
+            const guideContainer = document.getElementById('guide-model-container');
+            if (guideContainer) {
+                guideContainer.object3D.rotation.y += 0.01;
             }
-        });
+        }
+        animateGuide();
     </script>
 </body>
 </html>
