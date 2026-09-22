@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ISL VR Prototype</title>
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+</head>
+<body>
+    <a-scene>
+        <!-- Camera rig -->
+        <a-entity id="rig">
+            <a-entity camera look-controls position="0 1.6 0"></a-entity>
+            <a-entity id="rightHand" hand-tracking-controls="hand: right" sign-detector></a-entity>
+            <a-entity id="leftHand" hand-tracking-controls="hand: left"></a-entity>
+        </a-entity>
+
+        <!-- Instruction text -->
+        <a-text id="instruction" value="Show: Thumbs Up" position="0 2.2 -2" align="center" color="white" width="6"></a-text>
+
+        <!-- Feedback text -->
+        <a-text id="feedback" value="Waiting..." position="0 1.8 -2" align="center" color="yellow" width="6"></a-text>
+
+        <a-sky color="#222"></a-sky>
+    </a-scene>
+
+    <script>
+        AFRAME.registerComponent('sign-detector', {
+            init: function () {
+                this.feedbackEl = document.querySelector('#feedback');
+            },
+
+            tick: function () {
+                const handComp = this.el.components['hand-tracking-controls'];
+                if (!handComp || !handComp.bones) return;
+
+                const bones = handComp.bones;
+                const wrist = this.getJoint(bones, 'wrist');
+                const thumbTip = this.getJoint(bones, 'thumb-tip');
+                const indexTip = this.getJoint(bones, 'index-finger-tip');
+                const middleTip = this.getJoint(bones, 'middle-finger-tip');
+                const ringTip = this.getJoint(bones, 'ring-finger-tip');
+                const pinkyTip = this.getJoint(bones, 'pinky-finger-tip');
+
+                if (!wrist || !thumbTip) return;
+
+                const thumbDist = wrist.position.distanceTo(thumbTip.position);
+                const indexDist = wrist.position.distanceTo(indexTip.position);
+                const middleDist = wrist.position.distanceTo(middleTip.position);
+                const ringDist = wrist.position.distanceTo(ringTip.position);
+                const pinkyDist = wrist.position.distanceTo(pinkyTip.position);
+
+                const thumbExtended = thumbDist > 0.08;
+                const othersCurled = indexDist < 0.06 && middleDist < 0.06 &&
+                                      ringDist < 0.06 && pinkyDist < 0.06;
+
+                if (thumbExtended && othersCurled) {
+                    this.feedbackEl.setAttribute('value', 'Correct!');
+                    this.feedbackEl.setAttribute('color', 'green');
+                } else {
+                    this.feedbackEl.setAttribute('value', 'Try Again');
+                    this.feedbackEl.setAttribute('color', 'red');
+                }
+            },
+
+            getJoint: function (bones, name) {
+                return bones.find(b => b.name === name || b.jointName === name);
+            }
+        });
+    </script>
+</body>
+</html>
