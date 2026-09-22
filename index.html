@@ -8,82 +8,114 @@
     <a-scene>
         <a-entity id="rig">
             <a-entity camera look-controls position="0 1.6 0"></a-entity>
-            <a-entity id="rightHand" hand-tracking-controls="hand: right" sign-detector></a-entity>
-            <a-entity id="leftHand" hand-tracking-controls="hand: left"></a-entity>
         </a-entity>
 
         <a-text id="instruction" value="Show: Thumbs Up" position="0 2.4 -2" align="center" color="white" width="6"></a-text>
-
-        <a-text id="feedback" value="Waiting..." position="0 2.0 -2" align="center" color="yellow" width="6"></a-text>
-
-        <!-- Debug values yahan dikhenge -->
+        <a-text id="feedback" value="Waiting for hands..." position="0 2.0 -2" align="center" color="yellow" width="6"></a-text>
         <a-text id="debug" value="" position="0 1.6 -2" align="center" color="cyan" width="5"></a-text>
 
         <a-sky color="#222"></a-sky>
     </a-scene>
 
     <script>
-        AFRAME.registerComponent('sign-detector', {
-            init: function () {
-                this.feedbackEl = document.querySelector('#feedback');
-                this.debugEl = document.querySelector('#debug');
-            },
+        const feedbackEl = document.querySelector('#feedback');
+        const debugEl = document.querySelector('#debug');
+        let xrSession = null;
 
-            tick: function () {
-                const handComp = this.el.components['hand-tracking-controls'];
-                if (!handComp || !handComp.bones || handComp.bones.length === 0) {
-                    this.feedbackEl.setAttribute('value', 'Hand not detected');
-                    return;
-                }
+        document.querySelector('a-scene').addEventListener('enter-vr', () => {
+            const sceneEl = document.querySelector('a-scene');
+            xrSession = sceneEl.renderer.xr.getSession();
 
-                const bones = handComp.bones;
-                const wrist = this.getJoint(bones, 'wrist');
-                const thumbTip = this.getJoint(bones, 'thumb-tip');
-                const indexTip = this.getJoint(bones, 'index-finger-tip');
-                const middleTip = this.getJoint(bones, 'middle-finger-tip');
-                const ringTip = this.getJoint(bones, 'ring-finger-tip');
-                const pinkyTip = this.getJoint(bones, 'pinky-finger-tip');
-                const middleKnuckle = this.getJoint(bones, 'middle-finger-metacarpal') 
-                                    || this.getJoint(bones, 'middle-finger-phalanx-proximal');
-
-                if (!wrist || !thumbTip || !indexTip || !middleKnuckle) {
-                    this.debugEl.setAttribute('value', 'Joints missing - check names');
-                    return;
-                }
-
-                // Palm size ko reference bana rahe hain (yeh har hand ke liye scale set karega)
-                const palmSize = wrist.position.distanceTo(middleKnuckle.position);
-
-                const thumbDist = wrist.position.distanceTo(thumbTip.position) / palmSize;
-                const indexDist = wrist.position.distanceTo(indexTip.position) / palmSize;
-                const middleDist = wrist.position.distanceTo(middleTip.position) / palmSize;
-                const ringDist = wrist.position.distanceTo(ringTip.position) / palmSize;
-                const pinkyDist = wrist.position.distanceTo(pinkyTip.position) / palmSize;
-
-                // Debug: screen pe values dikhao
-                this.debugEl.setAttribute('value',
-                    'T:' + thumbDist.toFixed(2) + ' I:' + indexDist.toFixed(2) +
-                    ' M:' + middleDist.toFixed(2) + ' R:' + ringDist.toFixed(2) +
-                    ' P:' + pinkyDist.toFixed(2));
-
-                // Ratio-based thresholds (hand size se independent)
-                const thumbExtended = thumbDist > 1.3;
-                const othersCurled = indexDist < 1.1 && middleDist < 1.1 &&
-                                      ringDist < 1.1 && pinkyDist < 1.1;
-
-                if (thumbExtended && othersCurled) {
-                    this.feedbackEl.setAttribute('value', 'Correct!');
-                    this.feedbackEl.setAttribute('color', 'green');
-                } else {
-                    this.feedbackEl.setAttribute('value', 'Try Again');
-                    this.feedbackEl.setAttribute('color', 'red');
-                }
-            },
-
-            getJoint: function (bones, name) {
-                return bones.find(b => b.name === name || b.jointName === name);
+            if (!xrSession) {
+                feedbackEl.setAttribute('value', 'No XR session found');
+                return;
             }
+
+            feedbackEl.setAttribute('value', 'VR entered, looking for hands...');
+
+            sceneEl.addEventListener('renderstart', () => {
+                sceneEl.renderer.setAnimationLoop((time, frame) => {
+                    checkHands(frame, sceneEl);
+                });
+            });
         });
+
+        function checkHands(frame, sceneEl) {
+            if (!frame) return;
+            const session = sceneEl.renderer.xr.getSession();
+            if (!session) return;
+
+            const referenceSpace = sceneEl.renderer.xr.getReferenceSpace();
+
+            for (const inputSource of session.inputSources) {
+                if (inputSource.hand) {
+                    debugEl.setAttribute('value', 'Hand found: ' + inputSource.handedness);
+
+                    if (inputSource.handedness === 'right') {
+                        processHand(inputSource.hand, frame, referenceSpace);
+                    }
+                } else {
+                    debugEl.setAttribute('value', 'No hand data - using controller?');
+                }
+            }
+        }
+
+        function processHand(hand, frame, referenceSpace) {
+            const wristJoint = hand.get('wrist');
+            const thumbTip = hand.get('thumb-tip');
+            const indexTip = hand.get('index-finger-tip');
+            const middleTip = hand.get('middle-finger-tip');
+            const ringTip = hand.get('ring-finger-tip');
+            const pinkyTip = hand.get('pinky-finger-tip');
+            const middleMeta = hand.get('middle-finger-metacarpal');
+
+            if (!wristJoint || !thumbTip) return;
+
+            const wristPose = frame.getJointPose(wristJoint, referenceSpace);
+            const thumbPose = frame.getJointPose(thumbTip, referenceSpace);
+            const indexPose = frame.getJointPose(indexTip, referenceSpace);
+            const middlePose = frame.getJointPose(middleTip, referenceSpace);
+            const ringPose = frame.getJointPose(ringTip, referenceSpace);
+            const pinkyPose = frame.getJointPose(pinkyTip, referenceSpace);
+            const middleMetaPose = frame.getJointPose(middleMeta, referenceSpace);
+
+            if (!wristPose || !thumbPose) return;
+
+            const palmSize = distance(wristPose, middleMetaPose);
+            const thumbDist = distance(wristPose, thumbPose) / palmSize;
+            const indexDist = distance(wristPose, indexPose) / palmSize;
+            const middleDist = distance(wristPose, middlePose) / palmSize;
+            const ringDist = distance(wristPose, ringPose) / palmSize;
+            const pinkyDist = distance(wristPose, pinkyPose) / palmSize;
+
+            debugEl.setAttribute('value',
+                'T:' + thumbDist.toFixed(2) + ' I:' + indexDist.toFixed(2) +
+                ' M:' + middleDist.toFixed(2) + ' R:' + ringDist.toFixed(2) +
+                ' P:' + pinkyDist.toFixed(2));
+
+            const thumbExtended = thumbDist > 1.3;
+            const othersCurled = indexDist < 1.1 && middleDist < 1.1 &&
+                                  ringDist < 1.1 && pinkyDist < 1.1;
+
+            if (thumbExtended && othersCurled) {
+                feedbackEl.setAttribute('value', 'Correct!');
+                feedbackEl.setAttribute('color', 'green');
+            } else {
+                feedbackEl.setAttribute('value', 'Try Again');
+                feedbackEl.setAttribute('color', 'red');
+            }
+        }
+
+        function distance(pose1, pose2) {
+            if (!pose1 || !pose2) return 1;
+            const p1 = pose1.transform.position;
+            const p2 = pose2.transform.position;
+            return Math.sqrt(
+                Math.pow(p1.x - p2.x, 2) +
+                Math.pow(p1.y - p2.y, 2) +
+                Math.pow(p1.z - p2.z, 2)
+            );
+        }
     </script>
 </body>
 </html>
